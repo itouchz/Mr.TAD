@@ -22,7 +22,7 @@ def _compute_anomaly_scores(x, rec_x, scoring='sqaure'):
     elif scoring == 'probability':
         return None # ref. RAMED
 
-def evaluate(x, rec_x, is_reconstructed=False, n=1000, scoring='square'):
+def evaluate(x, rec_x, labels, is_reconstructed=False, n=1000, scoring='square'):
     TP, TN, FP, FN = [], [], [], []
     precision, recall, f1, fpr = [], [], [], []
     
@@ -34,7 +34,7 @@ def evaluate(x, rec_x, is_reconstructed=False, n=1000, scoring='square'):
         for t in range(len(x)): # for each time window
             # if any part of the segment has an anomaly, we consider it as anomalous sequence
 
-            true_anomalies, pred_anomalies = set(np.where(x[t] > th)[0]), set(np.where(rec_x[t] > th)[0])
+            true_anomalies, pred_anomalies = set(np.where(labels[t] == 1)[0]), set(np.where(rec_x[t] > th)[0])
             
             if len(pred_anomalies) > 0 and len(pred_anomalies.intersection(true_anomalies)) > 0:
                 # correct prediction (at least partial overlap with true anomalies)
@@ -64,7 +64,7 @@ def evaluate(x, rec_x, is_reconstructed=False, n=1000, scoring='square'):
         'precision': precision,
         'recall': recall,
         'f1': f1,
-        'pr_auc': auc(sorted(recall), precision),
-        'roc_auc': auc(sorted(fpr), recall),
+        'pr_auc': auc(recall, precision),
+        'roc_auc': auc(fpr, recall),
         'thresholds': thresholds
     }

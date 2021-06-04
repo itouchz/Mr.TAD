@@ -52,13 +52,15 @@ def load_yahoo(dataset, seq_length=0, stride=1):
     data_path = f'./datasets/yahoo/{dataset}Benchmark'
     datasets = sorted([f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))])
 
-    x_train, x_test = [], []
+    x_train, x_test, y_test = [], [], []
     for data in tqdm(datasets):
         df = pd.read_csv(f'{data_path}/{data}')[['value']]
+        label_df = pd.read_csv(f'{data_path}/{data}')[['is_anomaly']]
 
         test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
         train_df = df.iloc[:-test_idx]
         test_df = df.iloc[-test_idx:]
+        labels = label_df.iloc[-test_idx:]
 
         scaler = MinMaxScaler()
         train_df = scaler.fit_transform(train_df)
@@ -67,10 +69,12 @@ def load_yahoo(dataset, seq_length=0, stride=1):
         if seq_length > 0:
             x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
             x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+            y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
         else:
             x_train.append(train_df)
             x_test.append(test_df)
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+            y_test.append(labels)
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
 
 def load_yahoo_A1(seq_length=0, stride=1):
     return load_yahoo('A1', seq_length, stride)
