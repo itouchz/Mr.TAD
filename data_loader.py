@@ -43,7 +43,7 @@ def load_kdd_cup_urc(seq_length=0, stride=1):
             x_train.append(train_df)
             x_test.append(test_df)
         
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
 
 
 def load_yahoo(dataset, seq_length=0, stride=1):
@@ -114,7 +114,7 @@ def load_power_demand(seq_length=0, stride=1):
         x_test.append(test_df)
 
 
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
 
 def load_nasa(seq_length=0, stride=1):
     # sequence length: 100 (THOC)
@@ -123,12 +123,13 @@ def load_nasa(seq_length=0, stride=1):
     data_path = './datasets/nasa'
     labels = pd.read_csv(f'{data_path}/labeled_anomalies.csv')
 
-    x_train, x_test = [], []
+    x_train, x_test, y_test = [], [], []
     for dataset in tqdm(labels['spacecraft'].unique()):
-        subdata_train, subdata_test = [], []
+        subdata_train, subdata_test, sub_label = [], [], []
         for data in sorted(labels[labels['spacecraft'] == dataset]['chan_id'].values):
             train_df = np.load(f'{data_path}/train/{data}.npy')
             test_df = np.load(f'{data_path}/test/{data}.npy')
+            label_df = pd.read_csv(f'{data_path}/labeled_anomalies.csv')
 
             subdata_train.append(train_df)
             subdata_test.append(test_df)
@@ -145,7 +146,7 @@ def load_nasa(seq_length=0, stride=1):
             x_train.append(subdata_train)
             x_test.append(subdata_test)
         
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': False}
 
 def load_ecg(seq_length=0, stride=1):
     # sequence length:
@@ -173,7 +174,7 @@ def load_ecg(seq_length=0, stride=1):
             x_train.append(train_df)
             x_test.append(test_df)
             
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
 
 def load_gesture(seq_length=0, stride=1):
     # sequence length: 80 (THOC)
@@ -199,17 +200,18 @@ def load_gesture(seq_length=0, stride=1):
         x_train.append(train_df)
         x_test.append(test_df)
         
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
 
 def load_smd(seq_length=0, stride=1):
     # source: https://github.com/NetManAIOps/OmniAnomaly/tree/master/ServerMachineDataset
     data_path = './datasets/smd-omni'
     datasets = sorted([f for f in os.listdir(f'{data_path}/train') if os.path.isfile(os.path.join(f'{data_path}/train', f))])
     
-    x_train, x_test = [], []
+    x_train, x_test, y_test = [], [], []
     for data in tqdm(datasets):
         train_df = pd.read_csv(f'{data_path}/train/{data}', header=None, sep=',')
         test_df = pd.read_csv(f'{data_path}/test/{data}', header=None, sep=',')
+        labels = pd.read_csv(f'{data_path}/test_label/{data}', header=None)
 
         scaler = MinMaxScaler()
         train_df = scaler.fit_transform(train_df)
@@ -218,8 +220,10 @@ def load_smd(seq_length=0, stride=1):
         if seq_length > 0:
             x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
             x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+            y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
         else:
             x_train.append(train_df)
             x_test.append(test_df)
+            y_test.append(labels)
 
-    return {'x_train': x_train, 'x_test': x_test, 'with_label': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
