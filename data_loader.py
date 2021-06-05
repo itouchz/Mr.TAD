@@ -47,7 +47,7 @@ def load_kdd_cup_urc(seq_length=0, stride=1):
 
 
 def load_yahoo(dataset, seq_length=0, stride=1):
-    # sequence length: 
+    # sequence length: 128
     # source: https://webscope.sandbox.yahoo.com/catalog.php?datatype=s&did=70
     data_path = f'./datasets/yahoo/{dataset}Benchmark'
     datasets = sorted([f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))])
@@ -55,12 +55,12 @@ def load_yahoo(dataset, seq_length=0, stride=1):
     x_train, x_test, y_test = [], [], []
     for data in tqdm(datasets):
         df = pd.read_csv(f'{data_path}/{data}')[['value']]
-        label_df = pd.read_csv(f'{data_path}/{data}')[['is_anomaly']]
+        label_df = pd.read_csv(f'{data_path}/{data}').iloc[:, 2]
 
         test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
         train_df = df.iloc[:-test_idx]
         test_df = df.iloc[-test_idx:]
-        labels = label_df.iloc[-test_idx:]
+        labels = label_df.iloc[-test_idx:].values
 
         scaler = MinMaxScaler()
         train_df = scaler.fit_transform(train_df)
@@ -121,20 +121,25 @@ def load_nasa(seq_length=0, stride=1):
     # stride: 100 (THOC)
     # source: https://s3-us-west-2.amazonaws.com/telemanom/data.zip    
     data_path = './datasets/nasa'
-    labels = pd.read_csv(f'{data_path}/labeled_anomalies.csv')
+    label_df = pd.read_csv(f'{data_path}/labeled_anomalies.csv')
 
     x_train, x_test, y_test = [], [], []
-    for dataset in tqdm(labels['spacecraft'].unique()):
+    for dataset in tqdm(label_df['spacecraft'].unique()):
         subdata_train, subdata_test, sub_label = [], [], []
-        for data in sorted(labels[labels['spacecraft'] == dataset]['chan_id'].values):
+        for data in sorted(label_df[label_df['spacecraft'] == dataset]['chan_id'].values):
             train_df = np.load(f'{data_path}/train/{data}.npy')
             test_df = np.load(f'{data_path}/test/{data}.npy')
-            label_df = pd.read_csv(f'{data_path}/labeled_anomalies.csv')
+            
+            anomaly_seq = eval(label_df[label_df['chan_id'] == data]['anomaly_sequences'].to_list()[0])
+            labels = np.zeros(test_df.shape[0]).astype(int)
+            for idx in anomaly_seq:
+                labels[idx[0]+1:idx[1]+1] = 1
 
             subdata_train.append(train_df)
             subdata_test.append(test_df)
+            sub_label.append(labels)
 
-        subdata_train, subdata_test = np.concatenate(subdata_train), np.concatenate(subdata_test)
+        subdata_train, subdata_test, sub_label = np.concatenate(subdata_train), np.concatenate(subdata_test), np.concatenate(sub_label)
         scaler = MinMaxScaler()
         subdata_train = scaler.fit_transform(subdata_train)
         subdata_test = scaler.transform(subdata_test)
@@ -142,11 +147,13 @@ def load_nasa(seq_length=0, stride=1):
         if seq_length > 0:
             x_train.append(create_sequences(subdata_train, time_steps=seq_length, stride=stride))
             x_test.append(create_sequences(subdata_test, time_steps=seq_length, stride=stride))
+            y_test.append(create_sequences(sub_label, time_steps=seq_length, stride=stride))
         else:
             x_train.append(subdata_train)
             x_test.append(subdata_test)
+            y_test.append(sub_label)
         
-    return {'x_train': x_train, 'x_test': x_test, 'y_test': False}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
 
 def load_ecg(seq_length=0, stride=1):
     # sequence length:
@@ -211,7 +218,7 @@ def load_smd(seq_length=0, stride=1):
     for data in tqdm(datasets):
         train_df = pd.read_csv(f'{data_path}/train/{data}', header=None, sep=',')
         test_df = pd.read_csv(f'{data_path}/test/{data}', header=None, sep=',')
-        labels = pd.read_csv(f'{data_path}/test_label/{data}', header=None)
+        labels = pd.read_csv(f'{data_path}/test_label/{data}', header=None).values
 
         scaler = MinMaxScaler()
         train_df = scaler.fit_transform(train_df)

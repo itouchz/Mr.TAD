@@ -14,28 +14,28 @@ def _enumerate_thresholds(rec_errors, n=1000):
     
     return thresholds
 
-def _compute_anomaly_scores(x, rec_x, scoring='sqaure'):
+def _compute_anomaly_scores(x, rec_x, x_val=None, scoring='square'):
     if scoring == 'absolute':
-        return np.abs(rec_x - x)
+        return np.mean(np.abs(rec_x - x), axis=2)
     elif scoring == 'square':
-        return np.square(rec_x - x) # ref. S-RNNs
+        return np.mean(np.square(rec_x - x), axis=2) # ref. S-RNNs
     elif scoring == 'probability':
         return None # ref. RAMED
 
-def evaluate(x, rec_x, labels, is_reconstructed=False, n=1000, scoring='square'):
+def evaluate(x, rec_x, labels, is_reconstructed=True, n=1000, scoring='square', x_val=None):
     TP, TN, FP, FN = [], [], [], []
     precision, recall, f1, fpr = [], [], [], []
     
     rec_errors = _compute_anomaly_scores(x, rec_x, scoring) if is_reconstructed else rec_x
     thresholds = _enumerate_thresholds(rec_errors, n)
     
-    for th in tqdm(thresholds): # for each threshold
+    for th in thresholds: # for each threshold
         TP_t, TN_t, FP_t, FN_t = 0, 0, 0, 0
         for t in range(len(x)): # for each time window
             # if any part of the segment has an anomaly, we consider it as anomalous sequence
 
             true_anomalies, pred_anomalies = set(np.where(labels[t] == 1)[0]), set(np.where(rec_x[t] > th)[0])
-            
+
             if len(pred_anomalies) > 0 and len(pred_anomalies.intersection(true_anomalies)) > 0:
                 # correct prediction (at least partial overlap with true anomalies)
                 TP_t = TP_t + 1
