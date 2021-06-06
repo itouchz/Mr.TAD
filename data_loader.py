@@ -56,24 +56,32 @@ def load_yahoo(dataset, seq_length=0, stride=1):
     for data in tqdm(datasets):
         df = pd.read_csv(f'{data_path}/{data}')[['value']]
         label_df = pd.read_csv(f'{data_path}/{data}').iloc[:, 2]
-
-        test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
-        train_df = df.iloc[:-test_idx]
-        test_df = df.iloc[-test_idx:]
-        labels = label_df.iloc[-test_idx:].values
-
-        scaler = MinMaxScaler()
-        train_df = scaler.fit_transform(train_df)
-        test_df = scaler.transform(test_df)
-
-        if seq_length > 0:
-            x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
-            x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
-            y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
+        anomaly_idx = np.where(label_df == 1)[0]
+        
+        if dataset == 'A2':
+            test_idx = anomaly_idx[0]
+            train_df = df.iloc[:test_idx]
+            test_df = df.iloc[test_idx:]
+            labels = label_df.iloc[test_idx:].values
         else:
-            x_train.append(train_df)
-            x_test.append(test_df)
-            y_test.append(labels)
+            test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
+            train_df = df.iloc[:-test_idx]
+            test_df = df.iloc[-test_idx:]
+            labels = label_df.iloc[-test_idx:].values
+            
+        if len(np.where(labels == 1)[0]) > 0:
+            scaler = MinMaxScaler()
+            train_df = scaler.fit_transform(train_df)
+            test_df = scaler.transform(test_df)
+
+            if seq_length > 0:
+                x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
+                x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+                y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
+            else:
+                x_train.append(train_df)
+                x_test.append(test_df)
+                y_test.append(labels)
     return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
 
 def load_yahoo_A1(seq_length=0, stride=1):
@@ -87,34 +95,6 @@ def load_yahoo_A3(seq_length=0, stride=1):
 
 def load_yahoo_A4(seq_length=0, stride=1):
     return load_yahoo('A4', seq_length, stride)
-
-def load_power_demand(seq_length=0, stride=1):
-    # sequence length: 80 (THOC)
-    # stride: 1 (THOC)
-    # source: https://www.cs.ucr.edu/~eamonn/discords/power_data.txt
-    data_path = './datasets/power-demand'
-    
-    x_train, x_test = [], []
-    df = pd.read_csv(f'{data_path}/power_data.txt', names=['values'], dtype={'values': float})
-
-    test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
-    train_df = df.iloc[:-test_idx]
-    test_df = df.iloc[-test_idx:]
-
-    scaler = MinMaxScaler()
-    train_df = scaler.fit_transform(train_df)
-    test_df = scaler.transform(test_df)
-    
-    
-    if seq_length > 0:
-        x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
-        x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
-    else:
-        x_train.append(train_df)
-        x_test.append(test_df)
-
-
-    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
 
 def load_nasa(seq_length=0, stride=1):
     # sequence length: 100 (THOC)
@@ -159,16 +139,18 @@ def load_ecg(seq_length=0, stride=1):
     # sequence length:
     # stride: 
     # source: https://www.cs.ucr.edu/~eamonn/discords/ECG_data.zip
-    data_path = './datasets/ECG'
-    datasets = sorted([f for f in os.listdir(data_path) if os.path.isfile(os.path.join(data_path, f))])
+    data_path = './datasets/ECG/labeled/'
+    datasets = sorted([f for f in os.listdir(f'{data_path}/train') if os.path.isfile(os.path.join(f'{data_path}/train', f))])
 
-    x_train, x_test = [], []
+    x_train, x_test, y_test = [], [], []
     for data in tqdm(datasets):
-        df = pd.read_csv(f'{data_path}/{data}', header=None, sep='\t').drop(columns=0)
-
-        test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
-        train_df = df.iloc[:-test_idx]
-        test_df = df.iloc[-test_idx:]
+        train_df = np.array(pd.read_pickle(f'{data_path}/train/{data}'))
+        train_df = train_df[:, [0, 1]].astype(float)
+        
+        test_df = np.array(pd.read_pickle(f'{data_path}/test/{data}'))
+        labels = test_df[:, -1].astype(int)
+        test_df = test_df[:, [0, 1]].astype(float)  
+        
 
         scaler = MinMaxScaler()
         train_df = scaler.fit_transform(train_df)
@@ -177,24 +159,59 @@ def load_ecg(seq_length=0, stride=1):
         if seq_length > 0:
             x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
             x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+            y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
         else:
             x_train.append(train_df)
             x_test.append(test_df)
+            y_test.append(labels)
             
-    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
+
+def load_power_demand(seq_length=0, stride=1):
+    # sequence length: 80 (THOC), 512 (RAMED)
+    # stride: 1 (THOC), 512 (RAMED)
+    # source: https://www.cs.ucr.edu/~eamonn/discords/power_data.txt
+    data_path = './datasets/power-demand/labeled'
+    
+    x_train, x_test, y_test = [], [], []
+    train_df = np.array(pd.read_pickle(f'{data_path}/train/power_data.pkl'))
+    train_df = train_df[:, 0].astype(float)
+    train_df = train_df.reshape(-1, 1)
+    
+    test_df = np.array(pd.read_pickle(f'{data_path}/test/power_data.pkl'))
+    labels = test_df[:, -1].astype(int)
+    test_df = test_df[:, 0].astype(float)
+    test_df = test_df.reshape(-1, 1)
+
+    scaler = MinMaxScaler()
+    train_df = scaler.fit_transform(train_df)
+    test_df = scaler.transform(test_df)
+    
+    if seq_length > 0:
+        x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
+        x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+        y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
+    else:
+        x_train.append(train_df)
+        x_test.append(test_df)
+        y_test.append(labels)
+
+
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
 
 def load_gesture(seq_length=0, stride=1):
     # sequence length: 80 (THOC)
     # stride: 1 (THOC)
     # source: https://www.cs.ucr.edu/~eamonn/discords/ann_gun_CentroidA
-    data_path = './datasets/2d-gesture'
+    data_path = './datasets/2d-gesture/labeled'
 
-    x_train, x_test = [], []
-    df = pd.read_csv(f'{data_path}/data.txt', header=None, sep='\s+')
-
-    test_idx = int(df.shape[0]*0.3) # train 70% test 30% (Ref. RAMED)
-    train_df = df.iloc[:-test_idx]
-    test_df = df.iloc[-test_idx:]
+    x_train, x_test, y_test = [], [], []
+    train_df = np.array(pd.read_pickle(f'{data_path}/train/data.pkl'))
+    train_df = train_df[:, [0, 1]].astype(float)
+    
+    test_df = np.array(pd.read_pickle(f'{data_path}/test/data.pkl'))
+    labels = test_df[:, -1].astype(int)
+    test_df = test_df[:, [0, 1]].astype(float)
 
     scaler = MinMaxScaler()
     train_df = scaler.fit_transform(train_df)
@@ -203,11 +220,13 @@ def load_gesture(seq_length=0, stride=1):
     if seq_length > 0:
         x_train.append(create_sequences(train_df, time_steps=seq_length, stride=stride))
         x_test.append(create_sequences(test_df, time_steps=seq_length, stride=stride))
+        y_test.append(create_sequences(labels, time_steps=seq_length, stride=stride))
     else:
         x_train.append(train_df)
         x_test.append(test_df)
+        y_test.append(labels)
         
-    return {'x_train': x_train, 'x_test': x_test, 'y_test': None}
+    return {'x_train': x_train, 'x_test': x_test, 'y_test': y_test}
 
 def load_smd(seq_length=0, stride=1):
     # source: https://github.com/NetManAIOps/OmniAnomaly/tree/master/ServerMachineDataset
