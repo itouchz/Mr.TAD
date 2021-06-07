@@ -16,11 +16,11 @@ def _enumerate_thresholds(rec_errors, n=1000):
 
 def _compute_anomaly_scores(x, rec_x, x_val=None, scoring='square_mean'):
     if scoring == 'absolute':
-        return np.mean(np.abs(rec_x - x), axis=2)
+        return np.mean(np.abs(rec_x - x), axis=-1)
     elif scoring == 'square_mean':
-        return np.mean(np.square(rec_x - x), axis=2) # ref. S-RNNs
+        return np.mean(np.square(rec_x - x), axis=-1) # ref. S-RNNs
     elif scoring == 'square_median':
-        return np.median(np.square(rec_x - x), axis=2)
+        return np.median(np.square(rec_x - x), axis=-1)
     elif scoring == 'probability':
         return None # ref. RAMED
 
@@ -29,6 +29,12 @@ def evaluate(x, rec_x, labels, is_reconstructed=True, n=1000, scoring='square_me
     precision, recall, f1, fpr = [], [], [], []
     
     rec_errors = _compute_anomaly_scores(x, rec_x, scoring) if is_reconstructed else rec_x
+    if len(rec_errors.shape) > 2:
+        if scoring.split('_')[1] == 'mean':
+            rec_errors = np.mean(rec_errors, axis=0)
+        else:
+            rec_errors = np.median(rec_errors, axis=0)
+            
     thresholds = _enumerate_thresholds(rec_errors, n)
     
     for th in thresholds: # for each threshold
