@@ -22,7 +22,7 @@ def _compute_anomaly_scores(x, rec_x, x_val=None, scoring='square_mean'):
     elif scoring == 'square_median':
         return np.median(np.square(rec_x - x), axis=-1)
     elif scoring == 'probability':
-        return None # ref. RAMED
+        return None # ref. RAMED expect to fill in
 
 def evaluate(x, rec_x, labels, is_reconstructed=True, n=1000, scoring='square_mean', x_val=None):
     TP, TN, FP, FN = [], [], [], []
